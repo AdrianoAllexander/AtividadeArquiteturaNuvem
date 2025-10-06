@@ -2,27 +2,36 @@ import sys
 import os
 import pandas as pd
 
-if len(sys.argv) < 3:
-print("Uso: transform.py <input_dir> <output_dir>")
-sys.exit(1)
+def main(input_dir, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
 
-inp, outp = sys.argv[1], sys.argv[2]
-os.makedirs(outp, exist_ok=True)
+    for filename in os.listdir(input_dir):
+        if filename.endswith(".csv"):
+            input_path = os.path.join(input_dir, filename)
+            df = pd.read_csv(input_path)
+            
+            df = df.dropna()
+            df.columns = [col.strip().lower().replace(" ", "") for col in df.columns]
 
-for f in os.listdir(inp):
-if f.endswith(".csv"):
-df = pd.read_csv(os.path.join(inp, f))
+            if {'order_id', 'amount'}.issubset(df.columns):
+                df_client = df[['order_id', 'amount']]
+            else:
+                df_client = df.copy()
 
-    # Limpa dados
-    df = df.dropna()
-    df.columns = [c.strip().lower().replace(" ", "") for c in df.columns]
+            trusted_path = os.path.join(output_dir, f"trusted_{filename}")
+            df.to_csv(trusted_path, index=False)
+            
+            client_path = os.path.join(output_dir, f"client_{filename}")
+            df_client.to_csv(client_path, index=False)
 
-    # Gera dataframe de clientes se colunas existirem
-    if set(['order_id', 'amount']).issubset(df.columns):
-        df_client = df[['order_id', 'amount']]
-    else:
-        df_client = df.copy()
+    print("Processamento concluído com sucesso!")
 
-    # Salva arquivos transformados
-    df.to_csv(os.path.join(outp, f"trusted_{f}"), index=False)
-    df_client.to_csv(os.path.join(outp, f"client_{f}"), index=False)
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Uso: python transform.py <diretorio_de_entrada> <diretorio_de_saida>")
+        sys.exit(1)
+
+    input_directory = sys.argv[1]
+    output_directory = sys.argv[2]
+    
+    main(input_directory, output_directory)
