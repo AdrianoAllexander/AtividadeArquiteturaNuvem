@@ -1,46 +1,53 @@
 name: Data Pipeline CI/CD
 
 on:
-push:
-branches: [ "main" ]
-paths:
-- 'data/**.csv'
-workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'data/**.csv'
+  workflow_dispatch:
 
 jobs:
-data-pipeline:
-runs-on: ubuntu-latest
-steps:
-- name: Checkout
-uses: actions/checkout@v3
+  data-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
 
-```
-  - name: Configurar credenciais AWS
-    uses: aws-actions/configure-aws-credentials@v4
-    with:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-      aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-  - name: Upload original para RAW
-    run: |
-      aws s3 cp ./data/ s3://${{ secrets.S3_BUCKET_NAME }}/raw/ --recursive --exclude "*" --include "*.csv"
+      - name: Verificar credenciais e versão do AWS CLI
+        run: |
+          aws sts get-caller-identity
+          aws --version
 
-  - name: Instalar dependências Python
-    run: |
-      python -m pip install --upgrade pip
-      pip install pandas
+      - name: Upload original para camada RAW
+        run: |
+          echo "Enviando arquivos CSV para a camada RAW do bucket S3..."
+          aws s3 cp ./data/ s3://${{ secrets.S3_BUCKET_NAME }}/raw/ --recursive --exclude "*" --include "*.csv"
 
-  - name: Transformar dados (Trusted/Client)
-    run: |
-      python scripts/transform.py ./data/ ./output/
+      - name: Instalar dependências Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas boto3
 
-  - name: Upload TRUSTED
-    run: |
-      aws s3 cp ./output/ s3://${{ secrets.S3_BUCKET_NAME }}/trusted/ --recursive --exclude "*" --include "trusted_*.csv"
+      - name: Executar transformação de dados (Trusted/Client)
+        run: |
+          echo "Iniciando transformação de dados..."
+          python scripts/transform.py ./data/ ./output/
 
-  - name: Upload CLIENT
-    run: |
-      aws s3 cp ./output/ s3://${{ secrets.S3_BUCKET_NAME }}/client/ --recursive --exclude "*" --include "client_*.csv"
-```
+      - name: Upload camada TRUSTED
+        run: |
+          echo "Enviando arquivos processados para a camada TRUSTED..."
+          aws s3 cp ./output/ s3://${{ secrets.S3_BUCKET_NAME }}/trusted/ --recursive --exclude "*" --include "trusted_*.csv"
+
+      - name: Upload camada CLIENT
+        run: |
+          echo "Enviando arquivos de cliente para a camada CLIENT..."
+          aws s3 cp ./output/ s3://${{ secrets.S3_BUCKET_NAME }}/client/ --recursive --exclude "*" --include "client_*.csv"
